@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Unified Engine v2.0 - Analytical Workbench</title>
+    <style>
+        :root { --bg: #1a1a1a; --panel: rgba(30,30,30,0.9); --text: #e0e0e0; --accent: #00ffcc; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: var(--text); display: flex; }
+        #ui-panel { width: 320px; height: 100vh; background: var(--panel); padding: 20px; box-sizing: border-box; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 10; overflow-y: auto; backdrop-filter: blur(5px); border-right: 1px solid #333; }
+        canvas { flex-grow: 1; height: 100vh; display: block; }
+        h2 { margin-top: 0; font-size: 18px; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .control-group { margin-bottom: 20px; }
+        label { display: block; font-size: 12px; margin-bottom: 8px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+        select, input[type=range] { width: 100%; background: #222; color: var(--text); border: 1px solid #444; padding: 8px; border-radius: 4px; outline: none; }
+        select:focus { border-color: var(--accent); }
+        input[type=range] { -webkit-appearance: none; height: 6px; background: #444; border-radius: 3px; padding: 0; border: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: var(--accent); border-radius: 50%; cursor: pointer; }
+        .val { float: right; color: var(--accent); font-weight: bold; }
+        .json-preview { background: #111; padding: 10px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 11px; color: #888; max-height: 150px; overflow-y: auto; border: 1px dashed #333;}
+        .json-highlight { color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <div id="ui-panel">
+        <h2>Engine Parameters</h2>
+        
+        <div class="control-group">
+            <label>CAD Core Primitive</label>
+            <select id="cadShape">
+                <option value="0">Sphere (B-Rep Sim)</option>
+                <option value="1">Box (B-Rep Sim)</option>
+                <option value="2">Torus (B-Rep Sim)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>SVG Vector Operator</label>
+            <select id="svgOp">
+                <option value="0">Circle (&lt;circle&gt;)</option>
+                <option value="1">Square (&lt;rect&gt;)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Operator Size <span class="val" id="sizeVal">0.30</span></label>
+            <input type="range" id="svgSize" min="0.05" max="0.8" step="0.01" value="0.30">
+        </div>
+
+        <div class="control-group">
+            <label>Action Depth <span class="val" id="depthVal">0.15</span></label>
+            <input type="range" id="opDepth" min="0.01" max="0.5" step="0.01" value="0.15">
+        </div>
+
+        <div class="control-group">
+            <label>Topological Intent</label>
+            <select id="opAction">
+                <option value="1">Engrave (Subtract)</option>
+                <option value="-1">Emboss (Add)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Live "JSON" State</label>
+            <div class="json-preview" id="jsonPreview">
+                Generuji...
+            </div>
+        </div>
+    </div>
+
+    <canvas id="glcanvas"></canvas>
+
+    <script>
+        // --- OVLADAČE UI ---
+        const ui = {
+            cad: document.getElementById('cadShape'),
+            svg: document.getElementById('svgOp'),
+            size: document.getElementById('svgSize'),
+            depth: document.getElementById('opDepth'),
+            action: document.getElementById('opAction'),
+            sizeVal: document.getElementById('sizeVal'),
+            depthVal: document.getElementById('depthVal'),
+            json: document.getElementById('jsonPreview')
+        };
+
+        function updateUI() {
+            ui.sizeVal.innerText = ui.size.value;
+            ui.depthVal.innerText = ui.depth.value;
+            
+            // Simulace generování JSONu, který by jinak šel do enginu
+            const state = {
+                scene: {
+                    core: ["sphere", "box", "torus"][ui.cad.value],
+                    operator: {
+                        type: ["svg_circle", "svg_rect"][ui.svg.value],
+                        size: parseFloat(ui.size.value),
+                        action: ui.action.value == 1 ? "engrave" : "emboss",
+                        depth: parseFloat(ui.depth.value)
+                    }
+                }
+            };
+            ui.json.innerHTML = JSON.stringify(state, null, 2).replace(/(".*?")(\s*:)/g, '<span class="json-highlight">$1</span>$2');
+        }
+
+        [ui.cad, ui.svg, ui.size, ui.depth, ui.action].forEach(el => el.addEventListener('input', updateUI));
+        updateUI();
+
+        // --- WEBGL 2 ENGINE CORE ---
+        const canvas = document.getElementById('glcanvas');
+        const gl = canvas.getContext('webgl2', { antialias: true });
+
+        const vsSource = `#version 300 es
+        in vec2 aPosition;
+        void main() { gl_Position = vec4(aPosition, 0.0, 1.0); }`;
+
+        const fsSource = `#version 300 es
+        precision highp float;
+        out vec4 fragColor;
+        
+        uniform vec2 uResolution;
+        uniform vec2 uMouse;
+        uniform float uZoom;
+        
+        // Parametry z UI
+        uniform int uCadShape;
+        uniform int uSvgOp;
+        uniform float uSvgSize;
+        uniform float uDepth;
+        uniform float uAction; // 1 = engrave, -1 = emboss
+
+        // --- SDF KNihovna (Matematická reprezentace) ---
+        float sdSphere(vec3 p, float r) { return length(p) - r; }
+        float sdBox(vec3 p, vec3 b) { vec3 q = abs(p) - b; return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0); }
+        float sdTorus(vec3 p, vec2 t) { vec2 q = vec2(length(p.xz)-t.x,p.y); return length(q)-t.y; }
+        
+        // --- 2D Vektorové funkce (Simulace SVG parseru) ---
+        float sdCircle2D(vec2 p, float r) { return length(p) - r; }
+        float sdBox2D(vec2 p, vec2 b) { vec2 d = abs(p)-b; return length(max(d,0.0)) + min(max(d.x,d.y),0.0); }
+
+        // Vybral správný CAD tvar
+        float getCoreShape(vec3 p) {
+            if(uCadShape == 0) return sdSphere(p, 1.0);
+            if(uCadShape == 1) return sdBox(p, vec3(0.75));
+            if(uCadShape == 2) return sdTorus(p, vec2(0.7, 0.3));
+            return 1.0;
+        }
+
+        // Vybral správný SVG operátor
+        float getSvgShape(vec2 p) {
+            if(uSvgOp == 0) return sdCircle2D(p, uSvgSize);
+            if(uSvgOp == 1) return sdBox2D(p, vec2(uSvgSize));
+            return 1.0;
+        }
+
+        // --- HLAVNÍ SCÉNA (Srdce enginu) ---
+        float mapScene(vec3 p) {
+            float core = getCoreShape(p);
+            
+            // Generování 2D UV souřadnic na povrchu
+            vec2 uv;
+            if(uCadShape == 0) uv = vec2(atan(p.z, p.x)/6.2832 + 0.5, asin(clamp(p.y,-1.0,1.0))/3.1416 + 0.5);
+            else if(uCadShape == 1) uv = p.xz + 0.5;
+            else uv = vec2(atan(p.z, p.x)/6.2832 + 0.5, p.y + 0.5);
+
+            float svgVal = getSvgShape(uv - 0.5);
+            
+            // Aplikace záměru (Engrave/Emboss) pouze pokud jsme uvnitř SVG tvaru
+            float displacement = (svgVal < 0.0) ? uDepth * uAction : 0.0;
+            
+            return core + displacement;
+        }
+
+        vec3 calcNormal(vec3 p) {
+            vec2 e = vec2(0.001, 0.0);
+            return normalize(vec3(
+                mapScene(p + e.xyy) - mapScene(p - e.xyy),
+                mapScene(p + e.yxy) - mapScene(p - e.yxy),
+                mapScene(p + e.yyx) - mapScene(p - e.yyx)
+            ));
+        }
+
+        // Jemné stíny v rýhách (Ambient Occlusion)
+        float calcAO(vec3 p, vec3 n) {
+            float occ = 0.0;
+            float sca = 1.0;
+            for(int i=0; i<5; i++) {
+                float h = 0.01 + 0.12*float(i)/4.0;
+                float d = mapScene(p + h*n);
+                occ += (h-d)*sca;
+                sca *= 0.95;
+            }
+            return clamp(1.0 - 3.0*occ, 0.0, 1.0);
+        }
+
+        void main() {
+            vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution.xy) / uResolution.y;
+            
+            vec3 ro = vec3(0.0, 0.0, -3.0 * uZoom);
+            vec3 rd = normalize(vec3(uv, 1.0));
+            
+            float a = uMouse.x * 0.005;
+            float b = uMouse.y * 0.005;
+            mat3 rotX = mat3(1.0, 0.0, 0.0, 0.0, cos(b), -sin(b), 0.0, sin(b), cos(b));
+            mat3 rotY = mat3(cos(a), 0.0, sin(a), 0.0, 1.0, 0.0, -sin(a), 0.0, cos(a));
+            rd = rotY * rotX * rd;
+            ro = rotY * rotX * ro;
+
+            float t = 0.0;
+            float d = 0.0;
+            vec3 p;
+
+            // Raymarching
+            for(int i = 0; i < 128; i++) {
+                p = ro + rd * t;
+                d = mapScene(p);
+                if(d < 0.001 || t > 20.0) break;
+                t += d;
+            }
+
+            vec3 col = vec3(0.05, 0.05, 0.08);
+
+            if(d < 0.001) {
+                vec3 n = calcNormal(p);
+                float ao = calcAO(p, n);
+                
+                vec3 lightPos = vec3(3.0, 4.0, -3.0);
+                vec3 lightDir = normalize(lightPos - p);
+                float diff = max(dot(n, lightDir), 0.0);
+                
+                vec3 viewDir = normalize(ro - p);
+                vec3 halfDir = normalize(lightDir + viewDir);
+                float spec = pow(max(dot(n, halfDir), 0.0), 64.0);
+                
+                // Fresnel efekt pro kovový vzhled
+                float fres = pow(1.0 - max(dot(viewDir, n), 0.0), 3.0);
+
+                // Rozlišení materiálu
+                vec2 hitUv;
+                if(uCadShape == 0) hitUv = vec2(atan(p.z, p.x)/6.2832 + 0.5, asin(clamp(p.y,-1.0,1.0))/3.1416 + 0.5);
+                else if(uCadShape == 1) hitUv = p.xz + 0.5;
+                else hitUv = vec2(atan(p.z, p.x)/6.2832 + 0.5, p.y + 0.5);
+
+                float isModified = getSvgShape(hitUv - 0.5) < 0.0 ? 1.0 : 0.0;
+                
+                // Stříbrný kov vs. Matně červená rýha/výstupek
+                vec3 baseColor = mix(vec3(0.85, 0.88, 0.95), vec3(0.7, 0.1, 0.1), isModified);
+                
+                // Složení osvětlení
+                col = baseColor * (diff * 0.6 + 0.2) * ao; // Difuzní + ambient s AO
+                col += vec3(1.0, 0.9, 0.8) * spec * 0.8;    // Speculární odlesk
+                col += vec3(0.3, 0.4, 0.5) * fres * 0.5;    // Odlesk okrajů
+            }
+
+            // Gamma korekce
+            col = pow(col, vec3(1.0/2.2));
+            fragColor = vec4(col, 1.0);
+        }`;
+
+        function compileShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('Shader Error:', gl.getShaderInfoLog(shader));
+                return null;
+            }
+            return shader;
+        }
+
+        const vs = compileShader(gl, gl.VERTEX_SHADER, vsSource);
+        const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSource);
+        const program = gl.createProgram();
+        gl.attachShader(program, vs); gl.attachShader(program, fs);
+        gl.linkProgram(program); gl.useProgram(program);
+
+        const vertices = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+        const vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+        const aPosition = gl.getAttribLocation(program, "aPosition");
+        gl.enableVertexAttribArray(aPosition);
+        gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0);
+
+        // Lokace uniformů
+        const loc = {
+            res: gl.getUniformLocation(program, "uResolution"),
+            mouse: gl.getUniformLocation(program, "uMouse"),
+            zoom: gl.getUniformLocation(program, "uZoom"),
+            cad: gl.getUniformLocation(program, "uCadShape"),
+            svg: gl.getUniformLocation(program, "uSvgOp"),
+            size: gl.getUniformLocation(program, "uSvgSize"),
+            depth: gl.getUniformLocation(program, "uDepth"),
+            action: gl.getUniformLocation(program, "uAction")
+        };
+
+        let mouseX = 0, mouseY = 0, zoom = 1.0;
+        
+        window.addEventListener('mousemove', (e) => {
+            // Offset pro panel (320px)
+            mouseX = (e.clientX - 320) - (canvas.width/2);
+            mouseY = (e.clientY) - (canvas.height/2);
+        });
+
+        // Pridan Zoom kolečkem myši
+        window.addEventListener('wheel', (e) => {
+            zoom += e.deltaY * 0.001;
+            zoom = Math.max(0.3, Math.min(zoom, 3.0)); // Omezení zoomu
+        });
+
+        function render() {
+            canvas.width = window.innerWidth - 320;
+            canvas.height = window.innerHeight;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+
+            gl.uniform2f(loc.res, canvas.width, canvas.height);
+            gl.uniform2f(loc.mouse, mouseX, mouseY);
+            gl.uniform1f(loc.zoom, zoom);
+            
+            // Nastavení parametrů z UI přímo do GPU
+            gl.uniform1i(loc.cad, parseInt(ui.cad.value));
+            gl.uniform1i(loc.svg, parseInt(ui.svg.value));
+            gl.uniform1f(loc.size, parseFloat(ui.size.value));
+            gl.uniform1f(loc.depth, parseFloat(ui.depth.value));
+            gl.uniform1f(loc.action, parseFloat(ui.action.value));
+
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
+    </script>
+</body>
+</html>
