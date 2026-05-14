@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified 3D - Assembly Workbench v1.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #3b82f6;
+            --bg-dark: #050507;
+            --panel-glass: rgba(12, 12, 16, 0.95);
+        }
+        body { 
+            background: var(--bg-dark); 
+            color: #e2e8f0; 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+        .glass { 
+            background: var(--panel-glass); 
+            backdrop-filter: blur(24px); 
+            border-right: 1px solid rgba(255,255,255,0.05); 
+        }
+        .code-font { font-family: 'JetBrains Mono', monospace; }
+        
+        .token-key { color: #60a5fa; }
+        .token-str { color: #34d399; }
+        .token-num { color: #fbbf24; }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background: #1e293b;
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.1s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    </style>
+</head>
+<body class="flex h-screen w-screen selection:bg-blue-500/30">
+
+    <aside class="w-80 glass h-full z-10 flex flex-col shadow-[20px_0_50px_rgba(0,0,0,0.5)]">
+        <div class="p-6 border-b border-white/5 bg-white/[0.02]">
+            <h1 class="text-[10px] font-black tracking-[0.3em] text-blue-500 uppercase italic">Unified 3D Assembly</h1>
+            <p class="text-[9px] text-zinc-500 mt-1 font-medium tracking-tight">PROPRIETARY ENGINE v1.1 BETA</p>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-6 space-y-8 scroll-smooth">
+            <!-- Prostorové uspořádání -->
+            <section>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-[10px] uppercase tracking-[0.2em] text-zinc-400 font-bold">Spatial Assembly</h2>
+                    <span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[8px] font-bold">GRID</span>
+                </div>
+                <div class="space-y-5">
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-2 font-mono">
+                            <span class="text-zinc-500">DISPERSION</span>
+                            <span id="val-dispersion" class="text-blue-400">1.50</span>
+                        </div>
+                        <input type="range" id="param-dispersion" min="0.8" max="4.0" step="0.01" value="1.60">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Definice Jádra -->
+            <section>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-[10px] uppercase tracking-[0.2em] text-zinc-400 font-bold">Component Specs</h2>
+                    <span class="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[8px] font-bold">SDF</span>
+                </div>
+                <div class="space-y-5">
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-2 font-mono">
+                            <span class="text-zinc-500">PRIMITIVE RADIUS</span>
+                            <span id="val-radius" class="text-emerald-400">0.45</span>
+                        </div>
+                        <input type="range" id="param-radius" min="0.1" max="0.7" step="0.01" value="0.45">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-2 font-mono">
+                            <span class="text-zinc-500">OPERATOR DEPTH</span>
+                            <span id="val-depth" class="text-emerald-400">0.08</span>
+                        </div>
+                        <input type="range" id="param-depth" min="0.0" max="0.3" step="0.01" value="0.08">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Live JSON Manifest -->
+            <section>
+                <h2 class="text-[10px] uppercase tracking-[0.2em] text-zinc-400 font-bold mb-3">Live Semantic Manifest</h2>
+                <div class="bg-black/40 p-4 rounded-xl border border-white/5 text-[10px] code-font leading-relaxed shadow-inner">
+                    <div class="opacity-50 italic mb-2">// U-JSON Protocol v1.1</div>
+                    <p><span class="token-key">"assembly"</span>: {</p>
+                    <p class="pl-4"><span class="token-key">"logic"</span>: <span class="token-str">"instancing"</span>,</p>
+                    <p class="pl-4"><span class="token-key">"spacing"</span>: <span id="json-spacing" class="token-num">1.60</span>,</p>
+                    <p class="pl-4"><span class="token-key">"id"</span>: <span class="token-str">"ALAN-CORE-01"</span></p>
+                    <p>}</p>
+                </div>
+            </section>
+        </div>
+
+        <div class="p-6 bg-white/[0.02] border-t border-white/5">
+            <div class="text-[9px] text-zinc-500 mb-3 tracking-widest text-center uppercase">
+                © 2024 Alan Lukačovič | Palanisko11
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 relative">
+        <canvas id="engine_target" class="w-full h-full"></canvas>
+        <div class="absolute bottom-8 right-8 text-[10px] text-zinc-600 code-font pointer-events-none uppercase tracking-tighter">
+            Analytical Engine // WebGL 2.0 // SDF Assembly Mode
+        </div>
+    </main>
+
+    <script>
+/* 
+ * ========================================================================
+ * UNIFIED 3D ASSEMBLY ENGINE - CORE SYSTEM
+ * Copyright (c) 2024 Alan Lukačovič (Palanisko11). All Rights Reserved.
+ * LICENSE: Proprietary / All Rights Reserved
+ * ========================================================================
+ */
+
+const canvas = document.getElementById('engine_target');
+const gl = canvas.getContext('webgl2', { antialias: true, alpha: false });
+
+const vsSource = `#version 300 es
+    in vec2 pos;
+    void main() { gl_Position = vec4(pos, 0.0, 1.0); }
+`;
+
+const fsSource = `#version 300 es
+    precision highp float;
+    out vec4 fragColor;
+    
+    uniform vec2 uRes;
+    uniform float uTime;
+    uniform vec2 uMouse;
+    uniform float uDispersion;
+    uniform float uRadius;
+    uniform float uDepth;
+
+    float sdSphere(vec3 p, float r) { return length(p) - r; }
+
+    float map(vec3 p) {
+        // --- SPATIAL DOMAIN REPETITION ---
+        // Nekonečné pole objektů s nulovou režií
+        vec3 q = mod(p + 0.5 * uDispersion, uDispersion) - 0.5 * uDispersion;
+        
+        // Základní komponenta (Koule)
+        float body = sdSphere(q, uRadius);
+        
+        // Analytický operátor (Vryp ve tvaru sémantického kříže)
+        float op = max(abs(q.x), abs(q.y)) - 0.05;
+        float engrave = (op < 0.0) ? uDepth : 0.0;
+        
+        return body + engrave;
+    }
+
+    vec3 getNormal(vec3 p) {
+        vec2 e = vec2(0.001, 0.0);
+        return normalize(vec3(
+            map(p + e.xyy) - map(p - e.xyy),
+            map(p + e.yxy) - map(p - e.yxy),
+            map(p + e.yyx) - map(p - e.yyx)
+        ));
+    }
+
+    void main() {
+        vec2 uv = (gl_FragCoord.xy - 0.5 * uRes.xy) / uRes.y;
+        
+        // Kamera s mírnou rotací
+        float angle = uTime * 0.05 + uMouse.x * 0.005;
+        vec3 ro = vec3(3.0 * cos(angle), 1.0 + sin(uMouse.y * 0.005), 3.0 * sin(angle));
+        vec3 target = vec3(0.0);
+        vec3 f = normalize(target - ro);
+        vec3 r = normalize(cross(vec3(0,1,0), f));
+        vec3 u = cross(f, r);
+        vec3 rd = normalize(f + uv.x * r + uv.y * u);
+
+        float t = 0.0;
+        for(int i = 0; i < 80; i++) {
+            float d = map(ro + rd * t);
+            if(d < 0.001 || t > 25.0) break;
+            t += d;
+        }
+
+        vec3 col = vec3(0.02, 0.03, 0.05); // Barva hlubokého pozadí
+
+        if(t < 25.0) {
+            vec3 p = ro + rd * t;
+            vec3 n = getNormal(p);
+            
+            // Materiálová logika (Palanisko Signature Look)
+            float diff = max(dot(n, normalize(vec3(5, 10, 2))), 0.0);
+            float spec = pow(max(dot(reflect(vec3(-0.5, -1, -0.2), n), -rd), 0.0), 32.0);
+            
+            float fog = exp(-0.1 * t);
+            vec3 base = mix(vec3(0.1, 0.15, 0.3), vec3(0.6, 0.7, 0.9), n.y * 0.5 + 0.5);
+            
+            col = (base * diff + spec * 0.3) * fog;
+            col += vec3(0.3, 0.5, 1.0) * pow(1.0 - max(dot(n, -rd), 0.0), 4.0) * fog; // Rim Light
+        }
+
+        // Gamma korekce pro prémiový vzhled
+        fragColor = vec4(pow(col, vec3(0.4545)), 1.0);
+    }
+`;
+
+function createShader(gl, type, source) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, source);
+    gl.compileShader(s);
+    return s;
+}
+
+const program = gl.createProgram();
+gl.attachShader(program, createShader(gl, gl.VERTEX_SHADER, vsSource));
+gl.attachShader(program, createShader(gl, gl.FRAGMENT_SHADER, fsSource));
+gl.linkProgram(program);
+gl.useProgram(program);
+
+const buffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(program, "pos");
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+const uLoc = {
+    res: gl.getUniformLocation(program, "uRes"),
+    time: gl.getUniformLocation(program, "uTime"),
+    mouse: gl.getUniformLocation(program, "uMouse"),
+    disp: gl.getUniformLocation(program, "uDispersion"),
+    rad: gl.getUniformLocation(program, "uRadius"),
+    depth: gl.getUniformLocation(program, "uDepth")
+};
+
+let mX = 0, mY = 0;
+window.addEventListener('mousemove', e => { mX = e.clientX; mY = e.clientY; });
+
+function render(t) {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w; canvas.height = h;
+        gl.viewport(0, 0, w, h);
+    }
+
+    gl.uniform2f(uLoc.res, w, h);
+    gl.uniform1f(uLoc.time, t * 0.001);
+    gl.uniform2f(uLoc.mouse, mX, mY);
+
+    // Načítání parametrů z DOMu
+    const disp = parseFloat(document.getElementById('param-dispersion').value);
+    const rad = parseFloat(document.getElementById('param-radius').value);
+    const depth = parseFloat(document.getElementById('param-depth').value);
+
+    // Update UI textů
+    document.getElementById('val-dispersion').innerText = disp.toFixed(2);
+    document.getElementById('val-radius').innerText = rad.toFixed(2);
+    document.getElementById('val-depth').innerText = depth.toFixed(2);
+    document.getElementById('json-spacing').innerText = disp.toFixed(2);
+
+    gl.uniform1f(uLoc.disp, disp);
+    gl.uniform1f(uLoc.rad, rad);
+    gl.uniform1f(uLoc.depth, depth);
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+    </script>
+</body>
+</html>
