@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "metadata": { "unit": "mm", "author": "AnalyticEngine" },
+  "scene": [
+    {
+      "id": "base_body",
+      "type": "cad_primitive",
+      "geometry": {
+        "primitive": "cylinder",
+        "params": { "radius": 50, "height": 10, "fillet": 2.5 }
+      },
+      "operators": [
+        {
+          "type": "svg_projection",
+          "source": "vector_assets/logo.svg",
+          "mapping": {
+            "mode": "conformal",
+            "position": { "phi": 1.57, "z": 5 },
+            "scale": 0.2
+          },
+          "action": {
+            "operation": "engrave", // Fyzický vryp do tělesa
+            "depth": 0.5,
+            "chamfer": 0.1 // Sražená hrana vrypu
+          }
+        }
+      ],
+      "material": { "type": "pbr_metal", "roughness": 0.1 }
+    }
+  ]
+}
