@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DepthPortal — Demo vrstvení</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:0;background:#111;color:#eee;display:flex;flex-direction:column;align-items:center;gap:12px;padding:18px}
+    .controls{display:flex;gap:8px;align-items:center}
+    #stage{width:800px;height:450px;perspective:1000px;background:#222;overflow:hidden;position:relative}
+    .layer{position:absolute;left:0;top:0;width:100%;height:100%;background-position:center;background-size:cover;transform-style:preserve-3d}
+    input[type=range]{width:200px}
+    .note{font-size:0.9rem;color:#aaa}
+  </style>
+</head>
+<body>
+  <h1>DepthPortal — Jednoduché demo vrstvení</h1>
+  <div class="controls">
+    <label>Nahraj obrázek <input id="imgfile" type="file" accept="image/*"></label>
+    <label>Počet vrstev <input id="layers" type="range" min="2" max="60" value="12"></label>
+    <button id="regen">Obnovit vrstvy</button>
+  </div>
+  <div class="note">Tažením myši po scéně se projeví paralaxa. Toto demo simuluje hloubku duplikací a offsetem — ukázka softwarové části pipeline.</div>
+  <div id="stage"></div>
+  <script src="web/demo.js"></script>
+</body>
+</html>
