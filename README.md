@@ -1,3 +1,12 @@
+VÝHRADNÁ PRÁVA / Proprietární oznámení
+
+COPYRIGHT (c) 2026 Alan Lukačovič — Palanisko11@gmail.com
+Všechna práva vyhrazena.
+
+Poznámka: Tento repozitář byl dříve částečně publikován pod otevřenou licencí (MIT) v historii commitů. Smazáním nebo úpravou souboru LICENSE v aktuální větvi se existující historie nezmění; pokud chcete kompletně odstranit staré licence z historie, je nutné provést přepis historie (git filter-repo / BFG) s force‑push — k tomu potřebuji vaše explicitní potvrzení.
+
+---
+
 # DepthPortal — Průhledný 3D monitor s nekonečnou hloubkou
 
 Projekt DepthPortal je koncept a výzkumný záměr vytvořit „průhledný monitor“ s výraznou fyzickou hloubkou, do kterého lze vstoupit — obraz z jedné 2D fotografie se extrapoluje do plně prožitkového 3D prostoru.
@@ -66,7 +75,7 @@ Navržené počáteční issue šablony:
 - "doc: add contribution guide and coding standards"
 
 ## Licencování
-Navrhuji otevřenou licenci (MIT nebo Apache-2.0) pro snadnou spolupráci — vyberte prosím preferovanou licenci.
+Tento repozitář a jeho budoucí změny jsou odkomentovány jako proprietární — kontakt pro komerční licence: Palanisko11@gmail.com
 
 ## Poznámky
 Tento README shrnuje koncept a navrhovanou pracovní cestu. Pokud chcete, mohu rovnou:
@@ -76,4 +85,4 @@ Tento README shrnuje koncept a navrhovanou pracovní cestu. Pokud chcete, mohu r
 
 ---
 
-Autor: palanisko11-stack — DepthPortal concept (přepsáno do README)
+Autor deklarován: Alan Lukačovič — Palanisko11@gmail.com
