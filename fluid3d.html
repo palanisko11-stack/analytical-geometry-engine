@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volumetric Fluid Engine v1.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #38bdf8;
+            --bg-dark: #050507;
+            --panel-glass: rgba(12, 12, 16, 0.95);
+        }
+        body {
+            background: var(--bg-dark);
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        .glass {
+            background: var(--panel-glass);
+            backdrop-filter: blur(24px);
+            border-right: 1px solid rgba(255,255,255,0.05);
+        }
+        .code-font { font-family: 'JetBrains Mono', monospace; }
+
+        .token-key { color: #60a5fa; }
+        .token-str { color: #34d399; }
+        .token-num { color: #fbbf24; }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background: #1e293b;
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.1s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 26px;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 6px;
+            cursor: pointer;
+            padding: 2px;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+    </style>
+</head>
+<body class="flex h-screen w-screen selection:bg-sky-500/30">
+
+    <aside class="w-80 glass h-full z-10 flex flex-col shadow-[20px_0_50px_rgba(0,0,0,0.5)]">
+        <div class="p-6 border-b border-white/5 bg-white/[0.02]">
+            <h1 class="text-[10px] font-black tracking-[0.3em] text-sky-400 uppercase italic">Volumetric Fluid</h1>
+            <p class="text-[9px] text-zinc-500 mt-1 font-medium tracking-tight">PROPRIETARY ENGINE v1.0 BETA</p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-8 scroll-smooth">
+            <!-- Dynamika kapaliny -->
+            <section>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-[10px] uppercase tracking-[0.2em] text-zinc-400 font-bold">Fluid Dynamics</h2>
+                    <span class="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 text-[8px] font-bold">FLOW</span>
+                </div>
+                <div class="space-y-5">
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-2 font-mono">
+                            <span class="text-zinc-500">FLOW SPEED</span>
+                            <span id="val-speed" class="text-sky-400">0.45</span>
+                        </div>
+                        <input type="range" id="param-speed" min="0.0" max="2.0" step="0.01" value="0.45">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-2 font-mono">
+                            <span class="text-zinc-500">VISCOSITY</span>
+                            <span id="val-viscosity" class="text-sky-400">0.55</span>
+                        </div>
+                        <input type="range" id="param-viscosity" min="0.05" max="1.0" step="0.01" value="0.55">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-2 font-mono">
+                            <span class="text-zinc-500">TURBULENCE</span>
+                            <span id="val-turbulence" class="text-sky-400">0.60</span>
+                        </div>
+                        <input type="range" id="param-turbulence" min="0.0" max="1.5" step="0.01" value="0.60">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Objemové vlastnosti -->
+            <section>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-[10px] uppercase tracking-[0.2em] text-zinc-400 font-bold">Volume Specs</h2>
+                    <span class="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[8px] font-bold">RAYMARCH</span>
+                </div>
+                <div class="space-y-5">
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-2 font-mono">
+                            <span class="text-zinc-500">DENSITY</span>
+                            <span id="val-density" class="text-emerald-400">2.80</span>
+                        </div>
+                        <input type="range" id="param-density" min="0.2" max="5.0" step="0.01" value="2.80">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-2 font-mono">
+                            <span class="text-zinc-500">MARCH STEPS</span>
+                            <span id="val-steps" class="text-emerald-400">72</span>
+                        </div>
+                        <input type="range" id="param-steps" min="16" max="160" step="1" value="72">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-2 font-mono">
+                            <span class="text-zinc-500">METABALL RADIUS</span>
+                            <span id="val-radius" class="text-emerald-400">0.42</span>
+                        </div>
+                        <input type="range" id="param-radius" min="0.1" max="0.9" step="0.01" value="0.42">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Barevná signatura -->
+            <section>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-[10px] uppercase tracking-[0.2em] text-zinc-400 font-bold">Optical Signature</h2>
+                    <span class="px-1.5 py-0.5 rounded bg-fuchsia-500/10 text-fuchsia-400 text-[8px] font-bold">COLOR</span>
+                </div>
+                <div class="space-y-5">
+                    <div>
+                        <div class="text-[10px] mb-2 font-mono text-zinc-500">DEEP TONE</div>
+                        <input type="color" id="param-color-deep" value="#0b2a5e">
+                    </div>
+                    <div>
+                        <div class="text-[10px] mb-2 font-mono text-zinc-500">SURFACE TONE</div>
+                        <input type="color" id="param-color-surface" value="#7ee0ff">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[10px] mb-2 font-mono">
+                            <span class="text-zinc-500">LIGHT POWER</span>
+                            <span id="val-light" class="text-fuchsia-400">1.20</span>
+                        </div>
+                        <input type="range" id="param-light" min="0.0" max="3.0" step="0.01" value="1.20">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Live JSON Manifest -->
+            <section>
+                <h2 class="text-[10px] uppercase tracking-[0.2em] text-zinc-400 font-bold mb-3">Live Semantic Manifest</h2>
+                <div class="bg-black/40 p-4 rounded-xl border border-white/5 text-[10px] code-font leading-relaxed shadow-inner">
+                    <div class="opacity-50 italic mb-2">// U-JSON Protocol v1.0</div>
+                    <p><span class="token-key">"fluid"</span>: {</p>
+                    <p class="pl-4"><span class="token-key">"solver"</span>: <span class="token-str">"volumetric-raymarch"</span>,</p>
+                    <p class="pl-4"><span class="token-key">"viscosity"</span>: <span id="json-viscosity" class="token-num">0.55</span>,</p>
+                    <p class="pl-4"><span class="token-key">"steps"</span>: <span id="json-steps" class="token-num">72</span>,</p>
+                    <p class="pl-4"><span class="token-key">"id"</span>: <span class="token-str">"ALAN-FLUID-01"</span></p>
+                    <p>}</p>
+                </div>
+            </section>
+        </div>
+
+        <div class="p-6 bg-white/[0.02] border-t border-white/5">
+            <div class="text-[9px] text-zinc-500 mb-3 tracking-widest text-center uppercase">
+                © 2024 Alan Lukačovič | Palanisko11
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 relative">
+        <canvas id="engine_target" class="w-full h-full block"></canvas>
+        <div class="absolute bottom-8 right-8 text-[10px] text-zinc-600 code-font pointer-events-none uppercase tracking-tighter">
+            Analytical Engine // WebGL 2.0 // Volumetric Fluid Mode
+        </div>
+        <div id="gl_error" class="hidden absolute inset-0 flex items-center justify-center text-center text-[11px] text-red-400 code-font p-8"></div>
+    </main>
+
+    <script>
+/*
+ * ========================================================================
+ * VOLUMETRIC FLUID ENGINE - CORE SYSTEM
+ * Copyright (c) 2024 Alan Lukačovič (Palanisko11). All Rights Reserved.
+ * LICENSE: Proprietary / All Rights Reserved
+ * ========================================================================
+ */
+
+const canvas = document.getElementById('engine_target');
+const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
+
+const vsSource = `#version 300 es
+    in vec2 pos;
+    void main() { gl_Position = vec4(pos, 0.0, 1.0); }
+`;
+
+const fsSource = `#version 300 es
+    precision highp float;
+    out vec4 fragColor;
+
+    uniform vec2 uRes;
+    uniform float uTime;
+    uniform vec2 uMouse;
+    uniform float uSpeed;
+    uniform float uViscosity;
+    uniform float uTurbulence;
+    uniform float uDensity;
+    uniform int uSteps;
+    uniform float uRadius;
+    uniform float uLight;
+    uniform vec3 uColorDeep;
+    uniform vec3 uColorSurface;
+
+    const float VOLUME_RADIUS = 1.6;
+
+    // --- VALUE NOISE / FBM (analytická turbulence) ---
+    float hash(vec3 p) {
+        p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3));
+        p *= 17.0;
+        return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+    }
+
+    float noise(vec3 x) {
+        vec3 i = floor(x);
+        vec3 f = fract(x);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), f.x),
+                       mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
+                   mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
+                       mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);
+    }
+
+    float fbm(vec3 p) {
+        float a = 0.5;
+        float sum = 0.0;
+        for (int i = 0; i < 4; i++) {
+            sum += a * noise(p);
+            p = p * 2.02 + vec3(11.3, 7.7, 3.1);
+            a *= 0.5;
+        }
+        return sum;
+    }
+
+    // Polynomiální smooth-min pro splývání metaballů
+    float smin(float a, float b, float k) {
+        float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+        return mix(b, a, h) - k * h * (1.0 - h);
+    }
+
+    float sdSphere(vec3 p, float r) { return length(p) - r; }
+
+    // Pole metaballů unášené časem + interakce myší
+    float metaField(vec3 p, float t, vec2 m) {
+        float k = max(uViscosity, 0.05);
+        float d = 1e5;
+        for (int i = 0; i < 6; i++) {
+            float fi = float(i);
+            vec3 c = vec3(
+                sin(t * (0.7 + 0.11 * fi) + fi * 1.7),
+                cos(t * (0.6 + 0.13 * fi) + fi * 2.3),
+                sin(t * (0.5 + 0.17 * fi) + fi * 0.9)
+            ) * 0.75;
+            c.xy += m * 0.55;
+            d = smin(d, sdSphere(p - c, uRadius * (0.7 + 0.3 * sin(fi * 2.1 + t))), k);
+        }
+        return d;
+    }
+
+    // Objemová hustota fluidu: metaballs zvířené FBM šumem
+    float densityAt(vec3 p, vec2 m) {
+        float t = uTime * uSpeed;
+        float d = metaField(p, t, m);
+        float swirl = fbm(p * 1.6 + vec3(0.0, -t * 0.6, t * 0.25)) - 0.5;
+        d += swirl * uTurbulence;
+
+        // Uzavření objemu do koule (měkký ořez u okraje)
+        float bounds = length(p) - VOLUME_RADIUS;
+        d = max(d, bounds);
+
+        return clamp(-d * uDensity, 0.0, 1.0);
+    }
+
+    // Normála z gradientu hustoty pro nasvícení
+    vec3 densityNormal(vec3 p, vec2 m) {
+        vec2 e = vec2(0.035, 0.0);
+        return normalize(vec3(
+            densityAt(p + e.xyy, m) - densityAt(p - e.xyy, m),
+            densityAt(p + e.yxy, m) - densityAt(p - e.yxy, m),
+            densityAt(p + e.yyx, m) - densityAt(p - e.yyx, m)
+        ) + 1e-5);
+    }
+
+    // Průsečíky paprsku s ohraničující koulí objemu
+    vec2 sphereHit(vec3 ro, vec3 rd, float r) {
+        float b = dot(ro, rd);
+        float c = dot(ro, ro) - r * r;
+        float h = b * b - c;
+        if (h < 0.0) return vec2(-1.0);
+        h = sqrt(h);
+        return vec2(-b - h, -b + h);
+    }
+
+    void main() {
+        vec2 uv = (gl_FragCoord.xy - 0.5 * uRes.xy) / uRes.y;
+
+        // Normalizovaná pozice myši v rozsahu [-1, 1]
+        vec2 m = (uMouse - 0.5 * uRes.xy) / uRes.y;
+
+        // Kamera rotující kolem objemu, myš ovládá orbit
+        float angle = uTime * 0.12 + m.x * 1.6;
+        float height = 0.6 + m.y * 1.2;
+        vec3 ro = vec3(4.0 * cos(angle), height, 4.0 * sin(angle));
+        vec3 target = vec3(0.0);
+        vec3 f = normalize(target - ro);
+        vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
+        vec3 u = cross(f, r);
+        vec3 rd = normalize(f + uv.x * r + uv.y * u);
+
+        vec3 col = vec3(0.02, 0.03, 0.05);
+        vec3 bg = col + 0.05 * vec3(0.1, 0.2, 0.4) * (1.0 - length(uv));
+
+        vec2 hit = sphereHit(ro, rd, VOLUME_RADIUS);
+        vec3 acc = vec3(0.0);
+        float trans = 1.0;
+
+        if (hit.y > 0.0) {
+            float tNear = max(hit.x, 0.0);
+            float tFar = hit.y;
+            int steps = uSteps;
+            float dt = (tFar - tNear) / float(steps);
+
+            // Dithering vzorkování potlačuje pruhování
+            float jitter = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+            float t = tNear + dt * jitter;
+
+            vec3 lightDir = normalize(vec3(0.6, 0.9, 0.35));
+
+            for (int i = 0; i < 256; i++) {
+                if (i >= steps || trans < 0.01) break;
+
+                vec3 p = ro + rd * t;
+                float dens = densityAt(p, m);
+
+                if (dens > 0.001) {
+                    vec3 n = densityNormal(p, m);
+                    float diff = max(dot(n, lightDir), 0.0);
+                    float rim = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
+
+                    // Barevný gradient kapaliny podle hustoty + samostínění objemu
+                    vec3 base = mix(uColorDeep, uColorSurface, smoothstep(0.05, 0.85, dens));
+                    float selfShadow = 0.25 + 0.75 * trans;
+                    vec3 shaded = base * (0.12 + uLight * diff * selfShadow) + uColorSurface * rim * 0.3;
+
+                    float a = 1.0 - exp(-dens * uDensity * dt * 2.5);
+                    acc += shaded * a * trans;
+                    trans *= 1.0 - a;
+                }
+
+                t += dt;
+            }
+        }
+
+        col = bg * trans + acc;
+
+        // Gamma korekce pro prémiový vzhled
+        fragColor = vec4(pow(max(col, 0.0), vec3(0.4545)), 1.0);
+    }
+`;
+
+function createShader(gl, type, source) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, source);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        throw new Error(gl.getShaderInfoLog(s));
+    }
+    return s;
+}
+
+function fail(msg) {
+    const box = document.getElementById('gl_error');
+    box.classList.remove('hidden');
+    box.innerText = msg;
+}
+
+function hexToRgb(hex) {
+    return [
+        parseInt(hex.slice(1, 3), 16) / 255,
+        parseInt(hex.slice(3, 5), 16) / 255,
+        parseInt(hex.slice(5, 7), 16) / 255
+    ];
+}
+
+if (!gl) {
+    fail('WebGL 2.0 není v tomto prohlížeči dostupné.');
+} else {
+    const program = gl.createProgram();
+    try {
+        gl.attachShader(program, createShader(gl, gl.VERTEX_SHADER, vsSource));
+        gl.attachShader(program, createShader(gl, gl.FRAGMENT_SHADER, fsSource));
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            throw new Error(gl.getProgramInfoLog(program));
+        }
+    } catch (e) {
+        fail('Chyba kompilace shaderu:\n' + e.message);
+        throw e;
+    }
+    gl.useProgram(program);
+
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+
+    const posLoc = gl.getAttribLocation(program, "pos");
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+    const uLoc = {
+        res: gl.getUniformLocation(program, "uRes"),
+        time: gl.getUniformLocation(program, "uTime"),
+        mouse: gl.getUniformLocation(program, "uMouse"),
+        speed: gl.getUniformLocation(program, "uSpeed"),
+        viscosity: gl.getUniformLocation(program, "uViscosity"),
+        turbulence: gl.getUniformLocation(program, "uTurbulence"),
+        density: gl.getUniformLocation(program, "uDensity"),
+        steps: gl.getUniformLocation(program, "uSteps"),
+        radius: gl.getUniformLocation(program, "uRadius"),
+        light: gl.getUniformLocation(program, "uLight"),
+        colorDeep: gl.getUniformLocation(program, "uColorDeep"),
+        colorSurface: gl.getUniformLocation(program, "uColorSurface")
+    };
+
+    let mX = 0, mY = 0;
+    canvas.addEventListener('mousemove', e => {
+        const rect = canvas.getBoundingClientRect();
+        mX = e.clientX - rect.left;
+        mY = rect.height - (e.clientY - rect.top);
+    });
+    canvas.addEventListener('touchmove', e => {
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        mX = touch.clientX - rect.left;
+        mY = rect.height - (touch.clientY - rect.top);
+    }, { passive: true });
+
+    function render(t) {
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+        const w = Math.round(canvas.clientWidth * dpr);
+        const h = Math.round(canvas.clientHeight * dpr);
+        if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w; canvas.height = h;
+            gl.viewport(0, 0, w, h);
+        }
+
+        gl.uniform2f(uLoc.res, w, h);
+        gl.uniform1f(uLoc.time, t * 0.001);
+        gl.uniform2f(uLoc.mouse, mX * dpr, mY * dpr);
+
+        // Načítání parametrů z DOMu
+        const speed = parseFloat(document.getElementById('param-speed').value);
+        const viscosity = parseFloat(document.getElementById('param-viscosity').value);
+        const turbulence = parseFloat(document.getElementById('param-turbulence').value);
+        const density = parseFloat(document.getElementById('param-density').value);
+        const steps = parseInt(document.getElementById('param-steps').value, 10);
+        const radius = parseFloat(document.getElementById('param-radius').value);
+        const light = parseFloat(document.getElementById('param-light').value);
+        const deep = hexToRgb(document.getElementById('param-color-deep').value);
+        const surface = hexToRgb(document.getElementById('param-color-surface').value);
+
+        // Update UI textů
+        document.getElementById('val-speed').innerText = speed.toFixed(2);
+        document.getElementById('val-viscosity').innerText = viscosity.toFixed(2);
+        document.getElementById('val-turbulence').innerText = turbulence.toFixed(2);
+        document.getElementById('val-density').innerText = density.toFixed(2);
+        document.getElementById('val-steps').innerText = String(steps);
+        document.getElementById('val-radius').innerText = radius.toFixed(2);
+        document.getElementById('val-light').innerText = light.toFixed(2);
+        document.getElementById('json-viscosity').innerText = viscosity.toFixed(2);
+        document.getElementById('json-steps').innerText = String(steps);
+
+        gl.uniform1f(uLoc.speed, speed);
+        gl.uniform1f(uLoc.viscosity, viscosity);
+        gl.uniform1f(uLoc.turbulence, turbulence);
+        gl.uniform1f(uLoc.density, density);
+        gl.uniform1i(uLoc.steps, steps);
+        gl.uniform1f(uLoc.radius, radius);
+        gl.uniform1f(uLoc.light, light);
+        gl.uniform3f(uLoc.colorDeep, deep[0], deep[1], deep[2]);
+        gl.uniform3f(uLoc.colorSurface, surface[0], surface[1], surface[2]);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+}
+    </script>
+</body>
+</html>
