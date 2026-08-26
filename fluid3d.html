@@ -284,7 +284,7 @@ const fsSource = `#version 300 es
         float swirl = fbm(p * 1.6 + vec3(0.0, -t * 0.6, t * 0.25)) - 0.5;
         d += swirl * uTurbulence;
 
-        // Uzavření objemu do koule (měkký ořez u okraje)
+        // Uzavření objemu do koule (tvrdý ořez u okraje)
         float bounds = length(p) - VOLUME_RADIUS;
         d = max(d, bounds);
 
@@ -442,7 +442,8 @@ if (!gl) {
         colorSurface: gl.getUniformLocation(program, "uColorSurface")
     };
 
-    let mX = 0, mY = 0;
+    // Dokud se ukazatel nepohne, myš leží ve středu canvasu (neutrální kamera)
+    let mX = null, mY = null;
     canvas.addEventListener('mousemove', e => {
         const rect = canvas.getBoundingClientRect();
         mX = e.clientX - rect.left;
@@ -466,7 +467,7 @@ if (!gl) {
 
         gl.uniform2f(uLoc.res, w, h);
         gl.uniform1f(uLoc.time, t * 0.001);
-        gl.uniform2f(uLoc.mouse, mX * dpr, mY * dpr);
+        gl.uniform2f(uLoc.mouse, mX === null ? 0.5 * w : mX * dpr, mY === null ? 0.5 * h : mY * dpr);
 
         // Načítání parametrů z DOMu
         const speed = parseFloat(document.getElementById('param-speed').value);
